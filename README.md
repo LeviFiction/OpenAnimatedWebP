@@ -18,3 +18,13 @@ struct
 ### Software
 Webp commandline tools - webpmux - webpinfo - dump_anim
 https://developers.google.com/speed/webp/docs/precompiled
+
+# To Do:
+* Finish read code for basic file structure
+* Add code to simulate Open Image command (real open image crashes with animation file)
+* Check file for all appropriate fields
+* Create blank image the size of the canvas
+* Use dump_anim to create individual PNG images
+* Import each frame on its own layer at the appropriate offset, with encoding data as layer name
+* Save as PSPImage
+* Work on Animated WebP image exporter
