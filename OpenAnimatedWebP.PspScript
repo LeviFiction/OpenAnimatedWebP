@@ -1,0 +1,67 @@
+from PSPApp import *
+import os
+import struct
+
+def ScriptProperties():
+    return {
+        'Author': u'',
+        'Copyright': u'',
+        'Description': u'',
+        'Host': u'PaintShop Pro',
+        'Host Version': u'23.00'
+        }
+wd = "C:\\Users\\matthewjohnson\\Desktop\\libwebp-1.0.3-windows-x86\\bin\\"
+filename = wd + "test.webp"
+defaultSettings = {
+                    'ExecutionMode': App.Constants.ExecutionMode.Default, 
+                    'AutoActionMode': App.Constants.AutoActionMode.Match, 
+                    'Version': ((9,0,0),1)
+                    }
+silentSettings = defaultSettings.copy()
+silentSettings['ExecutionMode'] = App.Constants.ExecutionMode.Silent
+interactiveSettings = defaultSettings.copy()
+interactiveSettings['ExecutionMode'] = App.Constants.ExecutionMode.Interactive
+extendedFlags = {'rsv':-192, 'icc':32,'alpha':16, 'exif':8, 'xmp':4, 'anim':2, 'rsv2':-1}
+# 00001010
+# ----1-1-
+
+def checkBin(buff, flag):
+    if flag < 0: 
+        flag = abs(flag)
+        return buff & flag != flag
+    else:
+        return buff & flag == flag
+        
+def Do(Environment):
+    # EnableOptimizedScriptUndo
+    App.Do( Environment, 'EnableOptimizedScriptUndo', {
+            'GeneralSettings': defaultSettings
+            })
+
+    with open(filename, 'rb') as f:
+        header = f.read(16)
+        if header[:4] == b'RIFF' and header[8:12] == b'WEBP' and header[12:] == b'VP8X':
+            chunckSize = struct.unpack("<I", f.read(4))
+            flags = struct.unpack("<B", f.read(1))[0]
+            #If the format looks correct and the animation flag is set, assume there is an animation chunck
+            for flag in extendedFlags:
+                print("{}: {}".format(flag, checkBin(flags, extendedFlags[flag])))
+            if checkBin(flags, extendedFlags['anim']) and checkBin(flags, extendedFlags['rsv']) and checkBin(flags, extendedFlags['rsv2']):
+                if f.read(3) != b'\x00\x00\x00':
+                    print "File format not correct - reserved 24-bits not zeroed out"
+                    return
+                width,height = struct.unpack("<II", f.read(3) + b'\x00' + f.read(3)+b'\x00')
+                cWidth,cHeight = (width+1, height+1)
+            #Start ANIM chunk
+            if f.read(4) != b'ANIM': return
+            chunckSize = f.read(4)
+            c = struct.unpack("<BBBB", f.read(4))
+            color = c[2],c[1],c[0],c[3]
+            loops = struct.unpack("<H", f.read(2))
+            size = struct.unpack("<I", header[4:8])[0]
+            print("Image Size: {}".format(size))
+            print("Canvas Size: {}".format((cWidth,cHeight)))
+            print("Background Color: {}".format(color))
+            print("Loops: {}".format(loops))
+        else:
+            return
