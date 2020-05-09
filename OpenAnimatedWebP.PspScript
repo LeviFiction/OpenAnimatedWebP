@@ -41,7 +41,7 @@ def Do(Environment):
     root.destroy()
     folder = os.path.dirname(filename)
     os.chdir(wd)
-    os.system(wd + 'anim_dump.exe ' + filename + ' -folder ' + folder)
+    os.system('{} -folder {} {}'.format(os.path.join(wd,'anim_dump.exe'), folder, filename)) 
     with open(filename, 'rb') as f:
         fileSize = len(f.read())
         f.seek(0)
