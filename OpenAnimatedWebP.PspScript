@@ -1,17 +1,23 @@
 from PSPApp import *
 import os
 import struct
+from Tkinter import *
+import Tkinter, Tkconstants, tkFileDialog
 
 def ScriptProperties():
     return {
-        'Author': u'',
-        'Copyright': u'',
-        'Description': u'',
+        'Author': u'LeviFiction',
+        'Copyright': u'2020',
+        'Description': u'A script to open Animated WebP images with each frame on its own layer',
         'Host': u'PaintShop Pro',
         'Host Version': u'9.00'
         }
-wd = "C:\\Users\\Jack\\Desktop\\TestingScripts\\libwebp\\bin\\"
-filename = wd + "test.webp"
+        
+################################################################
+# Set Directory of libwebp tools
+################################################################
+wd = "C:\\Users\\<YourUsername>\\<Folder>\\libwebp\\bin\\"
+
 
 defaultSettings = {'ExecutionMode': 0,'AutoActionMode': 0,'Version': ((9,0,0),1)}
 silentSettings = defaultSettings.copy()
@@ -29,22 +35,21 @@ def checkBin(buff, flag):
         return buff & flag == flag
         
 def Do(Environment):
-    # EnableOptimizedScriptUndo
-    App.Do( Environment, 'EnableOptimizedScriptUndo', {
-            'GeneralSettings': defaultSettings
-            })
-
+    root = Tk()
+    root.withdraw()
+    filename = tkFileDialog.askopenfilename(initialdir = "%userprofile%", title = "Select WebP file",filetypes = (("WebP image","*.webp"),))
+    root.destroy()
+    folder = os.path.dirname(filename)
+    os.chdir(wd)
+    os.system(wd + 'anim_dump.exe ' + filename + ' -folder ' + folder)
     with open(filename, 'rb') as f:
         fileSize = len(f.read())
-        print fileSize
         f.seek(0)
         header = f.read(16)
         if header[:4] == b'RIFF' and header[8:12] == b'WEBP' and header[12:] == b'VP8X':
             chunkSize = struct.unpack("<I", f.read(4))
             flags = struct.unpack("<B", f.read(1))[0]
             #If the format looks correct and the animation flag is set, assume there is an animation chunck
-            for flag in extendedFlags:
-                print("{}: {}".format(flag, checkBin(flags, extendedFlags[flag])))
             if checkBin(flags, extendedFlags['anim']) and checkBin(flags, extendedFlags['rsv']) and checkBin(flags, extendedFlags['rsv2']):
                 if f.read(3) != b'\x00\x00\x00':
                     print "File format not correct - reserved 24-bits not zeroed out"
@@ -55,39 +60,114 @@ def Do(Environment):
             if f.read(4) != b'ANIM': return
             chunckSize = f.read(4)
             c = struct.unpack("<BBBB", f.read(4))
-            color = c[2],c[1],c[0],c[3]
+            color = c[2],c[1],c[0]
+            op = c[3]
             loops = struct.unpack("<H", f.read(2))
-            size = struct.unpack("<I", header[4:8])[0]
-            print("Image Size: {}".format(size))
-            print("Canvas Size: {}".format((cWidth,cHeight)))
-            print("Background Color: {}".format(color))
-            print("Loops: {}".format(loops))
-            frames = 0
+            imageSize = struct.unpack("<I", header[4:8])[0]
+            frames = -1
+            newFile(Environment, cWidth,cHeight,color,op)
             while f.tell() < fileSize:
                 chunkType = f.read(4)
                 chunkSize = struct.unpack("<I", f.read(4))[0]
-                print chunkType
                 if chunkType != b'ANMF': 
                     f.read(chunkSize)
                 else:
                     frames = frames + 1
+                    fname = "dump_" + str(frames).zfill(4) + ".png"
+                    openAsLayer(Environment, os.path.join(folder,fname), frames+1)
+                    os.remove(os.path.join(folder,fname))
                     start = f.tell()
-                    print "Frame {}".format(frames)
                     frameX = struct.unpack("<I", f.read(3)+b'\x00')[0]
-                    print "Frame X: {} *2 = {}".format(frameX, frameX*2)
                     frameY = struct.unpack("<I", f.read(3)+b'\x00')[0]
-                    print "Frame Y: {} *2 = {}".format(frameY, frameY*2)
                     frameWidth = struct.unpack("<I", f.read(3)+b'\x00')[0]+1
                     frameHeight = struct.unpack("<I", f.read(3)+b'\x00')[0]+1
-                    print "Frame Size: {} x {}".format(frameWidth, frameHeight)
                     frameDuration = struct.unpack("<I", f.read(3)+b'\x00')[0]
-                    print "Frame Duraction: {}".format(frameDuration)
                     flags = struct.unpack("<B", f.read(1))[0]
                     frameBlending = checkBin(flags, 2)
                     frameDisposal = checkBin(flags, 1)
-                    print "Frame Flags: Blend: {} Dispose: {}".format(frameBlending, frameDisposal)
-                    print f.tell(), chunkSize - f.tell()
+                    lName = "frame:{} x:{} y:{} w:{} h:{} d:{} b:{} d:{}".format(frames, frameX, frameY, frameWidth, frameHeight,frameDuration, frameBlending, frameDisposal)
+                    renameLayer(Environment, lName)
                     f.read(chunkSize - f.tell()+start)
-                    print f.tell()
         else:
             return
+            
+def openAsLayer(Environment, fname, insertTo=4):
+    # FileOpenAsNewLayer
+    App.Do( Environment, 'FileOpenAsNewLayer', {
+            'FileList': [fname], 
+            'InsertTo': -1, 
+            'Path': None,
+            'GeneralSettings': silentSettings
+            })
+
+def newFile(Environment,w,h,color,op):
+    # File New
+    App.Do( Environment, 'NewFile', {
+            'Width': w, 
+            'Height': h, 
+            'ColorDepth': App.Constants.Colordepth.SixteenMillionColor, 
+            'DimensionUnits': App.Constants.DimensionType.Pixels, 
+            'ResolutionUnits': App.Constants.ResolutionUnits.PixelsPerIn, 
+            'Resolution': 300, 
+            'FillMaterial': {
+                'Color': color, 
+                'Pattern': None, 
+                'Gradient': None, 
+                'Texture': None, 
+                'Art': None
+                }, 
+            'Transparent': False, 
+            'LayerType': App.Constants.NewLayerType.Raster, 
+            'GeneralSettings': silentSettings
+            })
+    # SelectDocument
+    App.Do( Environment, 'SelectDocument', {
+            'SelectedImage': 0, 
+            'Strict': False, 
+            'GeneralSettings': {
+                'ExecutionMode': App.Constants.ExecutionMode.Default, 
+                'AutoActionMode': App.Constants.AutoActionMode.Match, 
+                'Version': ((22,0,0),1)
+                }
+            })
+    # LayerPromoteBackground
+    App.Do( Environment, 'LayerPromoteBackground', {'GeneralSettings': defaultSettings})
+    # MultiObjectProperties
+    App.Do( Environment, 'MultiObjectProperties', {
+            'General': {
+                'Opacity': op, 
+                'Name': None, 
+                'IsVisible': None, 
+                'IsTransparencyLocked': None, 
+                'LinkSet': None, 
+                'UseHighlight': None, 
+                'PaletteHighlightColor': None, 
+                'GroupLink': None, 
+                'BlendMode': None
+                }, 
+            'Effects': None, 
+            'WorkingMode': 1, 
+            'Path': None, 
+            'GeneralSettings': silentSettings
+            })
+            
+def renameLayer(Environment, name):
+    # MultiObjectProperties
+    App.Do( Environment, 'MultiObjectProperties', {
+            'General': {
+                'Opacity': None, 
+                'Name': name, 
+                'IsVisible': None, 
+                'IsTransparencyLocked': None, 
+                'LinkSet': None, 
+                'UseHighlight': None, 
+                'PaletteHighlightColor': None, 
+                'GroupLink': None, 
+                'BlendMode': None
+                }, 
+            'Effects': None, 
+            'WorkingMode': 1, 
+            'Path': None, 
+            'GeneralSettings': silentSettings
+            })
+
