@@ -8,22 +8,18 @@ def ScriptProperties():
         'Copyright': u'',
         'Description': u'',
         'Host': u'PaintShop Pro',
-        'Host Version': u'23.00'
+        'Host Version': u'9.00'
         }
-wd = "C:\\Users\\matthewjohnson\\Desktop\\libwebp-1.0.3-windows-x86\\bin\\"
+wd = "C:\\Users\\Jack\\Desktop\\TestingScripts\\libwebp\\bin\\"
 filename = wd + "test.webp"
-defaultSettings = {
-                    'ExecutionMode': App.Constants.ExecutionMode.Default, 
-                    'AutoActionMode': App.Constants.AutoActionMode.Match, 
-                    'Version': ((9,0,0),1)
-                    }
+
+defaultSettings = {'ExecutionMode': 0,'AutoActionMode': 0,'Version': ((9,0,0),1)}
 silentSettings = defaultSettings.copy()
-silentSettings['ExecutionMode'] = App.Constants.ExecutionMode.Silent
+silentSettings['ExecutionMode'] = 2 #Silent
 interactiveSettings = defaultSettings.copy()
-interactiveSettings['ExecutionMode'] = App.Constants.ExecutionMode.Interactive
+interactiveSettings['ExecutionMode'] = 1 #Interactive
+
 extendedFlags = {'rsv':-192, 'icc':32,'alpha':16, 'exif':8, 'xmp':4, 'anim':2, 'rsv2':-1}
-# 00001010
-# ----1-1-
 
 def checkBin(buff, flag):
     if flag < 0: 
@@ -39,9 +35,12 @@ def Do(Environment):
             })
 
     with open(filename, 'rb') as f:
+        fileSize = len(f.read())
+        print fileSize
+        f.seek(0)
         header = f.read(16)
         if header[:4] == b'RIFF' and header[8:12] == b'WEBP' and header[12:] == b'VP8X':
-            chunckSize = struct.unpack("<I", f.read(4))
+            chunkSize = struct.unpack("<I", f.read(4))
             flags = struct.unpack("<B", f.read(1))[0]
             #If the format looks correct and the animation flag is set, assume there is an animation chunck
             for flag in extendedFlags:
@@ -63,5 +62,32 @@ def Do(Environment):
             print("Canvas Size: {}".format((cWidth,cHeight)))
             print("Background Color: {}".format(color))
             print("Loops: {}".format(loops))
+            frames = 0
+            while f.tell() < fileSize:
+                chunkType = f.read(4)
+                chunkSize = struct.unpack("<I", f.read(4))[0]
+                print chunkType
+                if chunkType != b'ANMF': 
+                    f.read(chunkSize)
+                else:
+                    frames = frames + 1
+                    start = f.tell()
+                    print "Frame {}".format(frames)
+                    frameX = struct.unpack("<I", f.read(3)+b'\x00')[0]
+                    print "Frame X: {} *2 = {}".format(frameX, frameX*2)
+                    frameY = struct.unpack("<I", f.read(3)+b'\x00')[0]
+                    print "Frame Y: {} *2 = {}".format(frameY, frameY*2)
+                    frameWidth = struct.unpack("<I", f.read(3)+b'\x00')[0]+1
+                    frameHeight = struct.unpack("<I", f.read(3)+b'\x00')[0]+1
+                    print "Frame Size: {} x {}".format(frameWidth, frameHeight)
+                    frameDuration = struct.unpack("<I", f.read(3)+b'\x00')[0]
+                    print "Frame Duraction: {}".format(frameDuration)
+                    flags = struct.unpack("<B", f.read(1))[0]
+                    frameBlending = checkBin(flags, 2)
+                    frameDisposal = checkBin(flags, 1)
+                    print "Frame Flags: Blend: {} Dispose: {}".format(frameBlending, frameDisposal)
+                    print f.tell(), chunkSize - f.tell()
+                    f.read(chunkSize - f.tell()+start)
+                    print f.tell()
         else:
             return
