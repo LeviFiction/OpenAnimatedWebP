@@ -1,0 +1,86 @@
+from PSPApp import *
+import os
+import struct
+from Tkinter import *
+import Tkinter, Tkconstants, tkFileDialog
+
+def ScriptProperties():
+    return {
+        'Author': u'LeviFiction',
+        'Copyright': u'2020',
+        'Description': u'A script to export each layer as a webp image and combine with webpmux',
+        'Host': u'PaintShop Pro',
+        'Host Version': u'9.00'
+        }
+        
+################################################################
+# Set Directory of libwebp tools
+################################################################
+wd = "C:\\Users\\<YourUsername>\\<Folder>\\libwebp\\bin\\"
+
+
+defaultSettings = {'ExecutionMode': 0,'AutoActionMode': 0,'Version': ((9,0,0),1)}
+silentSettings = defaultSettings.copy()
+silentSettings['ExecutionMode'] = 2 #Silent
+interactiveSettings = defaultSettings.copy()
+interactiveSettings['ExecutionMode'] = 1 #Interactive
+
+topLayer = (9999, 9999, [], False)
+bottomLayer = (9999, -9999, [], False)
+nextLayer = (0, 1, [], False)
+prevLayer = (0, -1, [], False)
+Env = None
+def Do(Environment):
+    frames = []
+    # Only top level layers will be used, go through all layers getting the name.
+    # if name has parameters, try and parse them if possible
+    # With all frames recorded, select each layer and show only layer
+    # Save Copy As - Frame_0000.webp
+    # Develop command
+    # Execute webpmux
+    
+    # Set environment as global variable
+    global Env
+    Env = Environment
+    # Top Level Layer Count is different from total Layer count.
+    # Select top most layer then grab its path add 1 to get layer count
+    selectLayer(topLayer)
+    topLayerCount = layerProps()['Path'][1]+1
+
+    # select bottom most layer and move upward
+    selectLayer(bottomLayer)
+    printInfo()
+    
+    for lPos in range(topLayerCount-1):
+        #Select next layer 
+        selectLayer(nextLayer)
+        info = layerProps()
+        frames.appaned([info['Path'], info['Name'], parseParams(info['Name'])])
+    
+def selectLayer(path):
+    if Env: 
+        App.Do( Env, 'SelectLayer',{ 'Path': path } )
+
+
+def layerProps():
+    if Env:
+        return App.Do(Env, 'ReturnLayerProperties',{})
+    return None
+    
+def printInfo():
+    info = layerProps()
+    fx,fy = info['LayerRect'][0],info['LayerRect'][1]
+    name = info['General']['Name']
+    print name
+    
+ def parseParams(params):
+    fParams = {}
+    if not ":" in params: return None
+    params = params.split()
+    for param in params:
+        if not ":" in param: continue
+        key, value = param.split(":")
+        if not value.isnumeric: continue
+        fParams[key] = value
+    if fParams: return None
+    return fParams
